@@ -3,7 +3,8 @@ import { WatchMode } from './WatchMode'
 import { PracticeMode } from './PracticeMode'
 import { algorithms } from './algorithms'
 import { AlgorithmBuilder } from './AlgorithmBuilder'
-import { loadCustomAlgorithms, addCustomAlgorithm } from './algorithmStorage'
+import { CustomAlgorithmManager } from './CustomAlgorithmManager'
+import { loadCustomAlgorithms, addCustomAlgorithm, updateCustomAlgorithm, removeCustomAlgorithm, getExecutorString } from './algorithmStorage'
 import type { Algorithm } from './algorithms'
 
 type Mode = 'watch' | 'practice'
@@ -11,12 +12,16 @@ type Mode = 'watch' | 'practice'
 function App() {
   const [mode, setMode] = useState<Mode>('watch');
   const [customAlgorithms, setCustomAlgorithms] = useState<Algorithm[]>([]);
+  const [executorStrings, setExecutorStrings] = useState<Map<string, string>>(new Map());
   const [showBuilder, setShowBuilder] = useState(false);
+  const [showManager, setShowManager] = useState(false);
+  const [algorithmToEdit, setAlgorithmToEdit] = useState<{ algorithm: Algorithm; executorString: string } | undefined>();
 
   // Load custom algorithms on mount
   useEffect(() => {
-    const loaded = loadCustomAlgorithms();
-    setCustomAlgorithms(loaded);
+    const { algorithms, executorStrings: loadedExecutorStrings } = loadCustomAlgorithms();
+    setCustomAlgorithms(algorithms);
+    setExecutorStrings(loadedExecutorStrings);
   }, []);
 
   const allAlgorithms = [...algorithms, ...customAlgorithms];
@@ -24,11 +29,46 @@ function App() {
 
   const selectedAlgorithm = allAlgorithms.find(a => a.id === selectedAlgorithmId) || allAlgorithms[0];
 
-  const handleSaveCustomAlgorithm = (algorithm: Algorithm, executorString: string) => {
-    addCustomAlgorithm(algorithm, executorString);
-    setCustomAlgorithms(prev => [...prev, algorithm]);
+  const handleSaveCustomAlgorithm = (algorithm: Algorithm, executorString: string, isEdit: boolean) => {
+    if (isEdit) {
+      updateCustomAlgorithm(algorithm, executorString);
+      setCustomAlgorithms(prev => prev.map(a => a.id === algorithm.id ? algorithm : a));
+      setExecutorStrings(prev => new Map(prev).set(algorithm.id, executorString));
+    } else {
+      addCustomAlgorithm(algorithm, executorString);
+      setCustomAlgorithms(prev => [...prev, algorithm]);
+      setExecutorStrings(prev => new Map(prev).set(algorithm.id, executorString));
+    }
     setSelectedAlgorithmId(algorithm.id);
     setShowBuilder(false);
+    setAlgorithmToEdit(undefined);
+  };
+
+  const handleEditAlgorithm = (algorithm: Algorithm) => {
+    const executorString = executorStrings.get(algorithm.id);
+    if (executorString) {
+      setAlgorithmToEdit({ algorithm, executorString });
+      setShowManager(false);
+      setShowBuilder(true);
+    } else {
+      console.error('Could not find executor string for algorithm:', algorithm.id);
+      alert('Error: Could not load algorithm for editing');
+    }
+  };
+
+  const handleDeleteAlgorithm = (algorithmId: string) => {
+    removeCustomAlgorithm(algorithmId);
+    setCustomAlgorithms(prev => prev.filter(a => a.id !== algorithmId));
+    setExecutorStrings(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(algorithmId);
+      return newMap;
+    });
+
+    // If deleted algorithm was selected, switch to first available
+    if (selectedAlgorithmId === algorithmId) {
+      setSelectedAlgorithmId(allAlgorithms[0]?.id || '');
+    }
   };
 
   return (
@@ -65,12 +105,22 @@ function App() {
             )}
           </select>
         </div>
-        <button
-          onClick={() => setShowBuilder(true)}
-          className="px-5 py-2 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap"
-        >
-          + Create Custom
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBuilder(true)}
+            className="px-5 py-2 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap"
+          >
+            + Create Custom
+          </button>
+          {customAlgorithms.length > 0 && (
+            <button
+              onClick={() => setShowManager(true)}
+              className="px-5 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap"
+            >
+              Manage Custom
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mode Toggle */}
@@ -125,7 +175,21 @@ function App() {
       {showBuilder && (
         <AlgorithmBuilder
           onSave={handleSaveCustomAlgorithm}
-          onCancel={() => setShowBuilder(false)}
+          onCancel={() => {
+            setShowBuilder(false);
+            setAlgorithmToEdit(undefined);
+          }}
+          algorithmToEdit={algorithmToEdit}
+        />
+      )}
+
+      {/* Custom Algorithm Manager Modal */}
+      {showManager && (
+        <CustomAlgorithmManager
+          customAlgorithms={customAlgorithms}
+          onEdit={handleEditAlgorithm}
+          onDelete={handleDeleteAlgorithm}
+          onClose={() => setShowManager(false)}
         />
       )}
     </div>

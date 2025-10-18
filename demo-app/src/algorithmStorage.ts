@@ -10,16 +10,23 @@ export function saveCustomAlgorithms(algorithms: Array<{ algorithm: Algorithm; e
   localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized));
 }
 
-export function loadCustomAlgorithms(): Algorithm[] {
+export function loadCustomAlgorithms(): { algorithms: Algorithm[]; executorStrings: Map<string, string> } {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
+    if (!stored) return { algorithms: [], executorStrings: new Map() };
 
     const serialized: SerializedAlgorithm[] = JSON.parse(stored);
-    return serialized.map(deserializeAlgorithm);
+    const algorithms = serialized.map(deserializeAlgorithm);
+    const executorStrings = new Map<string, string>();
+
+    serialized.forEach(s => {
+      executorStrings.set(s.id, s.executorString);
+    });
+
+    return { algorithms, executorStrings };
   } catch (error) {
     console.error('Failed to load custom algorithms:', error);
-    return [];
+    return { algorithms: [], executorStrings: new Map() };
   }
 }
 
@@ -38,4 +45,26 @@ export function removeCustomAlgorithm(algorithmId: string) {
   const serialized: SerializedAlgorithm[] = JSON.parse(existing);
   const filtered = serialized.filter(a => a.id !== algorithmId);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+}
+
+export function updateCustomAlgorithm(algorithm: Algorithm, executorString: string) {
+  const existing = localStorage.getItem(STORAGE_KEY);
+  if (!existing) return;
+
+  const serialized: SerializedAlgorithm[] = JSON.parse(existing);
+  const index = serialized.findIndex(a => a.id === algorithm.id);
+
+  if (index !== -1) {
+    serialized[index] = serializeAlgorithm(algorithm, executorString);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized));
+  }
+}
+
+export function getExecutorString(algorithmId: string): string | null {
+  const existing = localStorage.getItem(STORAGE_KEY);
+  if (!existing) return null;
+
+  const serialized: SerializedAlgorithm[] = JSON.parse(existing);
+  const found = serialized.find(a => a.id === algorithmId);
+  return found ? found.executorString : null;
 }

@@ -1,20 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createCustomAlgorithm, type CaptureFunction } from './createCustomAlgorithm';
 import type { Algorithm } from './algorithms';
 import { TraceTable } from './TraceTable';
 
 interface AlgorithmBuilderProps {
-  onSave: (algorithm: Algorithm, executorString: string) => void;
+  onSave: (algorithm: Algorithm, executorString: string, isEdit: boolean) => void;
   onCancel: () => void;
+  algorithmToEdit?: { algorithm: Algorithm; executorString: string };
 }
 
-export const AlgorithmBuilder = ({ onSave, onCancel }: AlgorithmBuilderProps) => {
+export const AlgorithmBuilder = ({ onSave, onCancel, algorithmToEdit }: AlgorithmBuilderProps) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [code, setCode] = useState('');
   const [executorString, setExecutorString] = useState('');
   const [previewAlgorithm, setPreviewAlgorithm] = useState<Algorithm | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-populate fields if editing
+  useEffect(() => {
+    if (algorithmToEdit) {
+      setName(algorithmToEdit.algorithm.name);
+      setDescription(algorithmToEdit.algorithm.description);
+      setCode(algorithmToEdit.algorithm.code);
+      setExecutorString(algorithmToEdit.executorString);
+    }
+  }, [algorithmToEdit]);
 
   const handleTestRun = () => {
     setError(null);
@@ -54,14 +65,25 @@ export const AlgorithmBuilder = ({ onSave, onCancel }: AlgorithmBuilderProps) =>
       return;
     }
 
-    onSave(previewAlgorithm, executorString);
+    // If editing, preserve the original ID
+    if (algorithmToEdit) {
+      const updatedAlgorithm = {
+        ...previewAlgorithm,
+        id: algorithmToEdit.algorithm.id
+      };
+      onSave(updatedAlgorithm, executorString, true);
+    } else {
+      onSave(previewAlgorithm, executorString, false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <h2 className="text-3xl font-bold mb-6">Create Custom Algorithm</h2>
+          <h2 className="text-3xl font-bold mb-6">
+            {algorithmToEdit ? 'Edit Custom Algorithm' : 'Create Custom Algorithm'}
+          </h2>
 
           {/* Name */}
           <div className="mb-4">
@@ -164,7 +186,7 @@ capture({ i: 6, sum, condition: false });`}
               disabled={!previewAlgorithm}
               className="px-5 py-2.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Add to Library
+              {algorithmToEdit ? 'Save Changes' : 'Add to Library'}
             </button>
             <button
               onClick={onCancel}
